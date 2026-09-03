@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.env
+venv/
+.venv/
+
+node_modules/
+chain/artifacts/
+chain/cache/
+chain/deployment.json
+
+output/*
+!output/.gitkeep
+
+*.egg-info/
+.DS_Store
