@@ -14,3 +14,5 @@ output/*
 
 *.egg-info/
 .DS_Store
+
+.claude/
