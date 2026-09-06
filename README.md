@@ -62,16 +62,26 @@ which runs each stage in order and prints progress + a final summary.
   pipeline runnable even where dlib's C++ build toolchain isn't available
   (see Known Limitations).
 
-- **Reverse image search: Google Cloud Vision "Web Detection".** Unlike
-  face-search-specific services (many of which have ToS/ethics problems
-  for this kind of demo), Vision's Web Detection is a legitimate, publicly
-  documented Google API purpose-built for "does this image appear
-  elsewhere on the web," with a free tier (1000 units/month) and no
-  scraping involved. It returns real pages where the image (or a visually
-  similar one) appears, which we rank to prefer known social media
-  domains. `search/vision_api.py` is written as a small, swappable module;
-  SerpApi's Google Lens endpoint is a documented drop-in alternative if
-  you'd rather use that (see below).
+- **Reverse image search: pluggable, two real backends implemented.**
+  Unlike face-search-specific services (many of which have ToS/ethics
+  problems for this kind of demo), both backends are legitimate, publicly
+  documented APIs purpose-built for "does this image appear elsewhere on
+  the web," and both rank results to prefer known social media domains:
+  - `search/vision_api.py` -- **Google Cloud Vision "Web Detection"**. Free
+    tier is 1000 units/month, but Google requires billing to be *enabled*
+    on the project (a card on file) even to use it.
+  - `search/serpapi_search.py` -- **SerpApi's Google Reverse Image
+    engine**. Free tier (~100 searches/month), no billing/card required.
+    SerpApi only accepts a public image URL (not a direct upload), so this
+    backend uploads the face crop to the caller's own free Dropbox app
+    folder, creates a temporary shared link, runs the search, then deletes
+    the upload immediately afterward. Dropbox was chosen over anonymous
+    file-hosting services (0x0.st, imgur, etc.) because those are commonly
+    blocked outright by corporate network security policies, while
+    mainstream tools like Dropbox typically aren't.
+
+  Pick one with `SEARCH_PROVIDER=google|serpapi` in `.env`, or per-run with
+  `--search-provider`.
 
 - **Blockchain: a Solidity registry contract via Hardhat + ethers.js,
   runnable locally or on Polygon's Amoy testnet.** A local Hardhat node
@@ -134,12 +144,19 @@ cd ..
 cp .env.example .env
 ```
 
-Then fill in:
+Then fill in (not required at all if you only run with `--mock-search`):
 
-- `GOOGLE_VISION_API_KEY` -- from Google Cloud Console: create/select a
-  project, enable **Cloud Vision API**, then create an API key under
-  *APIs & Services > Credentials*. Free tier covers plenty of hackathon
-  demo runs. Not required if you only run with `--mock-search`.
+- `SEARCH_PROVIDER` -- `google` or `serpapi` (default in `.env.example` is
+  `serpapi`, since it needs no billing/card).
+- For `google`: `GOOGLE_VISION_API_KEY` -- from Google Cloud Console:
+  create/select a project, enable **Cloud Vision API**, create an API key
+  under *APIs & Services > Credentials*, and **enable billing** on the
+  project (required by Google even for the free tier -- set a budget alert
+  if you want a safety net).
+- For `serpapi`: `SERPAPI_API_KEY` from https://serpapi.com/ (free, no
+  card), plus `DROPBOX_ACCESS_TOKEN` (also free, no card) -- see
+  [REAL_RUN_INSTRUCTIONS.md](REAL_RUN_INSTRUCTIONS.md) for the exact
+  click-by-click steps for both.
 - `AMOY_RPC_URL` / `CHAIN_PRIVATE_KEY` -- only needed for `--network amoy`.
   Get free test MATIC from https://faucet.polygon.technology/. **Never**
   put a mainnet private key here.

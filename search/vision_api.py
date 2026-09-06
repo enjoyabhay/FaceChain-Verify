@@ -14,33 +14,10 @@ from typing import Dict, List, Optional
 
 import requests
 
+from search.exceptions import NoMatchFoundError, SearchConfigError
+from search.social_domains import is_social
+
 VISION_ENDPOINT = "https://vision.googleapis.com/v1/images:annotate"
-
-# Domains we treat as "a real social media post" when ranking matches.
-SOCIAL_DOMAINS = [
-    "instagram.com",
-    "twitter.com",
-    "x.com",
-    "facebook.com",
-    "linkedin.com",
-    "reddit.com",
-    "tiktok.com",
-    "pinterest.com",
-    "threads.net",
-    "vk.com",
-]
-
-
-class SearchConfigError(Exception):
-    """Raised when the search backend isn't configured (e.g. missing API key)."""
-
-
-class NoMatchFoundError(Exception):
-    """Raised when the web search ran but found no matching pages."""
-
-
-def _is_social(url: str) -> bool:
-    return any(domain in url.lower() for domain in SOCIAL_DOMAINS)
 
 
 def _pick_best_page(pages: List[Dict]) -> Dict:
@@ -48,7 +25,7 @@ def _pick_best_page(pages: List[Dict]) -> Dict:
     highest-ranked page that's on a recognized social media domain, and
     fall back to the top overall result otherwise."""
     for page in pages:
-        if _is_social(page.get("url", "")):
+        if is_social(page.get("url", "")):
             return page
     return pages[0]
 
@@ -87,7 +64,14 @@ def web_detect(image_path: str, max_results: int = 15) -> Dict[str, Optional[str
     }
 
     resp = requests.post(f"{VISION_ENDPOINT}?key={api_key}", json=payload, timeout=30)
-    resp.raise_for_status()
+    if not resp.ok:
+        try:
+            detail = resp.json().get("error", {}).get("message", resp.text)
+        except ValueError:
+            detail = resp.text
+        raise SearchConfigError(
+            f"Vision API request failed ({resp.status_code}): {detail}"
+        )
     data = resp.json()
 
     response0 = data.get("responses", [{}])[0]
@@ -108,6 +92,6 @@ def web_detect(image_path: str, max_results: int = 15) -> Dict[str, Optional[str
         "post_url": best.get("url", ""),
         "page_title": best.get("pageTitle", ""),
         "matched_image_url": _first_matching_image_url(best),
-        "is_social": _is_social(best.get("url", "")),
+        "is_social": is_social(best.get("url", "")),
         "total_pages_found": len(pages),
     }

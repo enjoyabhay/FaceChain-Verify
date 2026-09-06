@@ -18,7 +18,13 @@ import requests
 from face.detect import detect_face
 from pipeline.hashing import compute_record_hash
 from search.mock_search import mock_web_detect
-from search.vision_api import web_detect
+from search.serpapi_search import web_detect as serpapi_web_detect
+from search.vision_api import web_detect as google_web_detect
+
+SEARCH_BACKENDS = {
+    "google": google_web_detect,
+    "serpapi": serpapi_web_detect,
+}
 
 ROOT = Path(__file__).resolve().parent.parent
 CHAIN_DIR = ROOT / "chain"
@@ -135,6 +141,7 @@ def run_pipeline(
     network: str = "localhost",
     mock_search: bool = False,
     keep_node: bool = False,
+    search_provider: str = "google",
 ) -> dict:
     OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -144,10 +151,11 @@ def run_pipeline(
 
     print("[2/4] Searching the web for a matching post ...")
     if mock_search:
-        print("      (--mock-search: skipping the real Vision API call)")
+        print("      (--mock-search: skipping the real search call)")
         match = mock_web_detect(face_result.face_image_path)
     else:
-        match = web_detect(face_result.face_image_path)
+        print(f"      using search provider: {search_provider}")
+        match = SEARCH_BACKENDS[search_provider](face_result.face_image_path)
     print(f"      best match: {match['post_url']}")
     if match.get("page_title"):
         print(f"      page title: {match['page_title']}")
@@ -205,6 +213,7 @@ def run_pipeline(
             "matched_post_url": match["post_url"],
             "matched_image_url": match.get("matched_image_url") or "",
             "search_mock": mock_search,
+            "search_provider": search_provider if not mock_search else "mock",
             "network": network,
             "contract_address": deploy_result["address"],
             "tx_hash": record_result["txHash"],
